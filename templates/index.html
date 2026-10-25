@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#141614">
+  <title>Human vs AI · El juego</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23d9fa75'/%3E%3Cpath d='M17 17v30m30-30v30M17 32h30' stroke='%23141614' stroke-width='7'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='game.js') }}" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a href="/" class="brand" aria-label="Human vs AI, inicio"><span class="brand-icon">h<span>↗</span></span><span>human<span class="brand-vs">vs</span>ai<span class="brand-dot">.</span></span></a>
+      <span class="header-caption">NO TODO ES LO QUE PARECE</span>
+      <div class="top-actions">
+        <button id="restart" class="icon-button" title="Nueva partida" aria-label="Nueva partida">↻</button>
+        <button id="fullscreen" class="icon-button" title="Pantalla completa (F)" aria-label="Pantalla completa">⛶</button>
+      </div>
+    </header>
+
+    <main id="game">
+      <section class="round-heading">
+        <div><p class="eyebrow">EL RETO DE LA PERCEPCIÓN</p><h1>¿Real o <span>inteligencia artificial?</span></h1></div>
+        <div class="round-pill"><span class="live-dot"></span>RONDA <strong id="round-number">01</strong><span class="dim">/ <span id="total">100</span></span></div>
+      </section>
+      <div class="game-layout">
+        <section class="viewer-panel" aria-label="Material de la ronda">
+          <div class="viewer-toolbar"><span id="media-kind" class="media-label">CARGANDO MATERIAL</span><div class="framing-control"><button id="framing" class="small-button" aria-expanded="false">⌗ <span>Encuadre</span></button><div id="framing-popover" class="popover" hidden><label for="crop">Recorte inferior <strong id="crop-value">8%</strong></label><input id="crop" type="range" min="0" max="16" step="1" value="8"><p>Ajusta la franja inferior que se oculta en pantalla. Se aplica a todos los materiales.</p></div></div></div>
+          <div id="stage" class="stage"><div id="crop-window" class="crop-window"></div><div id="loading" class="loading">Preparando la ronda…</div></div>
+          <div class="viewer-footer"><span id="media-hint">Observa los detalles. Confía en tu ojo.</span><button id="replay" class="small-button" hidden>↻ Repetir clip</button></div>
+        </section>
+
+        <aside class="decision-panel">
+          <div class="decision-top"><span class="section-counter">01 — OBSERVA Y DECIDE</span><h2>¿Qué estás<br>viendo?</h2><p id="decision-help">Mira con atención y elige el origen de este material.</p></div>
+          <div class="choices" role="group" aria-label="Escoge el origen">
+            <button id="choose-real" class="choice real-choice"><span class="choice-icon">◎</span><span class="choice-copy"><strong>Real</strong><small>Capturado en el mundo real</small></span><kbd>1</kbd></button>
+            <button id="choose-ia" class="choice ai-choice"><span class="choice-icon">✳</span><span class="choice-copy"><strong>IA</strong><small>Generado artificialmente</small></span><kbd>2</kbd></button>
+          </div>
+          <div id="answer" class="answer" aria-live="polite" hidden>
+            <div id="verdict" class="verdict"></div><h3 id="answer-title"></h3><p id="explanation"></p>
+            <div class="source-box"><span>FUENTE ORIGINAL</span><a id="source" target="_blank" rel="noopener noreferrer"></a><a id="download" class="download-link" target="_blank" rel="noopener noreferrer">Ver archivo exacto ↗</a><small id="credit"></small></div>
+          </div>
+          <button id="next" class="next-button" disabled>Siguiente material <span>→</span></button>
+          <div class="score-strip"><div><span class="score-label">TU PUNTAJE</span><strong><span id="score">0</span><span class="score-denominator"> / <span id="answered">0</span></span></strong></div><span class="score-icon">↗</span></div>
+        </aside>
+      </div>
+      <footer class="bottom-bar"><span><span class="tiny-dot"></span> HUMAN VS AI <span class="footer-separator">/</span> ACTIVIDAD 02</span><span id="progress-label">100 oportunidades para poner a prueba tu intuición.</span></footer>
+      <div class="progress-track"><div id="progress"></div></div>
+    </main>
+
+    <section id="finish" class="finish" hidden><p class="eyebrow">RETO COMPLETADO</p><h1>Buen ojo.<br><span>¿O buena suerte?</span></h1><div class="final-score"><strong id="final-score"></strong><span id="final-total"></span></div><p id="final-message"></p><button id="play-again" class="next-button">Volver a jugar <span>↗</span></button></section>
+    <div id="error" class="error-toast" role="alert" hidden></div>
+  </div>
+  <dialog id="restart-dialog"><h2>¿Otra partida?</h2><p>El marcador volverá a cero y los materiales se mezclarán de nuevo.</p><div class="dialog-actions"><button id="cancel-restart" class="small-button">Seguir jugando</button><button id="confirm-restart" class="next-button">Nueva partida ↗</button></div></dialog>
+</body>
+</html>
