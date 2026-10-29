@@ -1,4 +1,4 @@
-import { createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
+import { TURN_MS, migrateTurnDuration, createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
 
 const $ = id => document.getElementById(id);
 const KEY = 'human-vs-ia-presentation-v2';
@@ -64,7 +64,7 @@ function setAction(label, disabled = false) {
 }
 
 function renderTimer() {
-  const seconds = session.phase === 'running' ? Math.max(0, Math.ceil((session.deadline - Date.now()) / 1000)) : session.phase === 'ready' ? 15 : 0;
+  const seconds = session.phase === 'running' ? Math.max(0, Math.ceil((session.deadline - Date.now()) / 1000)) : session.phase === 'ready' ? TURN_MS / 1000 : 0;
   $('time').textContent = seconds;
   document.querySelector('.clock').classList.toggle('urgent', session.phase === 'running' && seconds <= 5);
 }
@@ -304,7 +304,8 @@ async function init() {
       const saved = JSON.parse(localStorage.getItem(KEY));
       if (validSession(saved, [...bank.keys()])) {
         session = saved;
-        // A refresh cannot buy another 15 seconds or expose an expired material.
+        migrateTurnDuration(session);
+        // A refresh cannot buy another 10 seconds or expose an expired material.
         expireTurn(session);
         save();
       }

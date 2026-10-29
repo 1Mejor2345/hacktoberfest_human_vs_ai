@@ -7,11 +7,15 @@ Actividad abierta para mostrar en una pantalla grande. Conserva la estética med
 - No hay equipos, votos ni marcador.
 - Cada ronda tiene exactamente tres turnos.
 - Cada turno espera el botón **Start**. El material se prepara oculto antes de habilitar el botón.
-- Al pulsarlo, se muestra el material durante 15 segundos. El audio o video se reproduce con ese mismo comando.
+- Al pulsarlo, se muestra el material durante 10 segundos. El audio o video se reproduce con ese mismo comando.
 - Cuando termina el tiempo, el material se oculta, el reproductor se detiene y el área queda blanca. La respuesta todavía no aparece.
 - **Mostrar respuesta** revela el origen, la explicación y la fuente en esa área blanca.
 - **Siguiente** prepara el turno siguiente, que vuelve a esperar Start.
 - Después del tercer turno, una pantalla de cierre espera **Siguiente ronda**. Se pueden acercar nuevos participantes.
+
+## Encuadre
+
+Las imágenes y los videos llenan el marco con un zoom centrado de 1,25×, que deja fuera al menos el 10 % de cada borde. El recorte se aplica igual a materiales humanos y de IA, y puede cortar parte de la composición para ocultar marcas periféricas. Los archivos originales, las fuentes y los créditos se conservan.
 
 ## Sin repeticiones
 

@@ -1,4 +1,4 @@
-export const TURN_MS = 15000;
+export const TURN_MS = 10000;
 export const TURNS_PER_ROUND = 3;
 export const PHASES = ['ready', 'running', 'blank', 'answer', 'roundEnd', 'exhausted'];
 
@@ -8,7 +8,7 @@ export function createSession(ids, random = Math.random) {
     const j = Math.floor(random() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
   }
-  return { version: 2, order, cursor: 0, round: 1, turn: 0, phase: 'ready', deadline: null };
+  return { version: 2, order, cursor: 0, round: 1, turn: 0, turnMs: TURN_MS, phase: 'ready', deadline: null };
 }
 
 export function currentId(session) {
@@ -18,6 +18,7 @@ export function currentId(session) {
 export function beginTurn(session, now = Date.now()) {
   if (session.phase !== 'ready' || !currentId(session)) return false;
   session.phase = 'running';
+  session.turnMs = TURN_MS;
   session.deadline = now + TURN_MS;
   return true;
 }
@@ -70,4 +71,13 @@ export function validSession(session, ids) {
   if (![0, 1, 2].includes(session.turn) || session.cursor !== (session.round - 1) * TURNS_PER_ROUND + session.turn) return false;
   if (!currentId(session)) return false;
   return session.phase === 'running' ? Number.isFinite(session.deadline) : session.deadline === null;
+}
+
+// Preserve the original start time when upgrading an in-progress 15-second turn.
+export function migrateTurnDuration(session) {
+  const previousDuration = session.turnMs ?? 15000;
+  if (session.phase === 'running' && previousDuration !== TURN_MS) {
+    session.deadline += TURN_MS - previousDuration;
+  }
+  session.turnMs = TURN_MS;
 }

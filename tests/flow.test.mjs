@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from '../static/flow.js';
+import { migrateTurnDuration, createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from '../static/flow.js';
 
 const ids = Array.from({ length: 100 }, (_, i) => `material-${i}`);
 const completeTurn = (session, now = 1000) => {
   assert.equal(beginTurn(session, now), true);
-  assert.equal(expireTurn(session, now + 15000), true);
+  assert.equal(expireTurn(session, now + 10000), true);
   assert.equal(revealAnswer(session), true);
   assert.equal(advanceTurn(session), true);
 };
 
-test('Start is required, material expires after 15 seconds, reveal and next are separate', () => {
+test('Start is required, material expires after 10 seconds, reveal and next are separate', () => {
   const s = createSession(ids);
   assert.equal(s.phase, 'ready');
   assert.equal(expireTurn(s, 999999), false);
@@ -18,10 +18,10 @@ test('Start is required, material expires after 15 seconds, reveal and next are 
   assert.equal(advanceTurn(s), false);
   assert.equal(beginTurn(s, 1000), true);
   assert.equal(beginTurn(s, 5000), false);
-  assert.equal(s.deadline, 16000);
+  assert.equal(s.deadline, 11000);
   assert.equal(revealAnswer(s), false);
-  assert.equal(expireTurn(s, 15999), false);
-  assert.equal(expireTurn(s, 16000), true);
+  assert.equal(expireTurn(s, 10999), false);
+  assert.equal(expireTurn(s, 11000), true);
   assert.equal(s.phase, 'blank');
   assert.equal(advanceTurn(s), false);
   assert.equal(revealAnswer(s), true);
@@ -62,7 +62,7 @@ test('reload preserves the deck and original deadline, even after the tab was aw
   assert.deepEqual(restored.order, s.order);
   assert.equal(currentId(restored), currentId(s));
   assert.equal(expireTurn(restored, 10000), false);
-  assert.equal(restored.deadline, 16000);
+  assert.equal(restored.deadline, 11000);
   assert.equal(expireTurn(restored, 20000), true);
   assert.equal(restored.phase, 'blank');
   assert.equal(validSession(restored, ids), true);
@@ -77,4 +77,19 @@ test('reject stale or damaged history instead of accepting duplicate materials',
   assert.equal(validSession({ ...s, version: 1 }, ids), false);
   assert.equal(validSession({ ...s, cursor: 4 }, ids), false);
   assert.equal(validSession({ ...s, phase: 'running', deadline: null }, ids), false);
+});
+
+test('upgrading a running 15-second turn preserves its start and material history', () => {
+  const s = createSession(ids);
+  s.phase = 'running';
+  s.deadline = 16000;
+  delete s.turnMs;
+  const order = [...s.order];
+  migrateTurnDuration(s);
+  assert.equal(s.deadline, 11000);
+  assert.equal(s.turnMs, 10000);
+  assert.deepEqual(s.order, order);
+  assert.equal(expireTurn(s, 11000), true);
+  migrateTurnDuration(s);
+  assert.equal(s.deadline, null);
 });
