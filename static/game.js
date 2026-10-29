@@ -1,5 +1,5 @@
 import { TURN_MS, migrateTurnDuration, createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
-import { DEFAULT_FRAMING, normalizeFraming, fitFrame } from './framing.js';
+import { DEFAULT_FRAMING, normalizeFraming, restoreFraming, fitFrame } from './framing.js';
 
 const $ = id => document.getElementById(id);
 const KEY = 'human-vs-ia-presentation-v2';
@@ -11,9 +11,14 @@ let mediaReady = false;
 let loadToken = 0;
 let tick = null;
 let warningTimeout;
-const FRAMING_KEY = 'human-vs-ia-framing-v1';
+const FRAMING_KEY = 'human-vs-ia-framing-v2';
 let framing = { ...DEFAULT_FRAMING };
-try { framing = normalizeFraming(JSON.parse(localStorage.getItem(FRAMING_KEY))); } catch { /* Use the default frame. */ }
+try {
+  const saved = JSON.parse(localStorage.getItem(FRAMING_KEY));
+  const legacy = saved == null ? JSON.parse(localStorage.getItem('human-vs-ia-framing-v1')) : null;
+  framing = restoreFraming(saved, legacy);
+  if (saved == null && legacy != null) localStorage.setItem(FRAMING_KEY, JSON.stringify(framing));
+} catch { /* Use the default frame. */ }
 
 function fitMedia() {
   const frame = $('media-frame');
@@ -43,7 +48,7 @@ for (const id of ['zoom', 'crop-bottom']) $(id).addEventListener('input', () => 
 });
 $('framing-reset').onclick = () => {
   framing = { ...DEFAULT_FRAMING };
-  try { localStorage.removeItem(FRAMING_KEY); } catch { /* The current view still resets. */ }
+  try { localStorage.setItem(FRAMING_KEY, JSON.stringify(framing)); } catch { /* The current view still resets. */ }
   updateFraming();
 };
 window.addEventListener('resize', fitMedia);
