@@ -3,56 +3,84 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#141614">
-  <title>Human vs AI · El juego</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23d9fa75'/%3E%3Cpath d='M17 17v30m30-30v30M17 32h30' stroke='%23141614' stroke-width='7'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <script src="{{ url_for('static', filename='game.js') }}" defer></script>
+  <meta name="theme-color" content="#1a1612">
+  <title>Humano vs IA · Hacktoberfest</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/game.js"></script>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <a href="/" class="brand" aria-label="Human vs AI, inicio"><span class="brand-icon">h<span>↗</span></span><span>human<span class="brand-vs">vs</span>ai<span class="brand-dot">.</span></span></a>
-      <span class="header-caption">NO TODO ES LO QUE PARECE</span>
-      <div class="top-actions">
-        <button id="restart" class="icon-button" title="Nueva partida" aria-label="Nueva partida">↻</button>
-        <button id="fullscreen" class="icon-button" title="Pantalla completa (F)" aria-label="Pantalla completa">⛶</button>
+  <header class="topbar">
+    <img class="event-logo" src="/static/assets/hacktoberfest-x-ieee-hkn-nu-zeta.svg" alt="Hacktoberfest × IEEE HKN Nu Zeta">
+    <button id="fullscreen" class="quiet" aria-label="Pantalla completa">⛶</button>
+  </header>
+  <main>
+    <section id="welcome" class="hero frame">
+      <div class="hero-copy">
+        <p class="eyebrow">El desafío de la percepción</p>
+        <h1>HUMANO<br><span class="versus">VS</span> IA</h1>
+        <div class="rule" aria-hidden="true">✦</div>
+        <p class="subtitle">Acércate. Mira con atención.<br>¿Real o inteligencia artificial?</p>
+        <p class="muted">Tres turnos por ronda. Quince segundos para observar cada material. La respuesta se revela cuando tú decidas.</p>
+        <button class="primary" id="begin" disabled>Preparando materiales…</button>
+        <div class="facts"><span><b>3</b> turnos</span><span><b>15 s</b> para observar</span><span><b>Sin</b> repeticiones</span></div>
       </div>
-    </header>
-
-    <main id="game">
-      <section class="round-heading">
-        <div><p class="eyebrow">EL RETO DE LA PERCEPCIÓN</p><h1>¿Real o <span>inteligencia artificial?</span></h1></div>
-        <div class="round-pill"><span class="live-dot"></span>RONDA <strong id="round-number">01</strong><span class="dim">/ <span id="total">100</span></span></div>
-      </section>
-      <div class="game-layout">
-        <section class="viewer-panel" aria-label="Material de la ronda">
-          <div class="viewer-toolbar"><span id="media-kind" class="media-label">CARGANDO MATERIAL</span><div class="framing-control"><button id="framing" class="small-button" aria-expanded="false">⌗ <span>Encuadre</span></button><div id="framing-popover" class="popover" hidden><label for="crop">Recorte inferior <strong id="crop-value">8%</strong></label><input id="crop" type="range" min="0" max="16" step="1" value="8"><p>Ajusta la franja inferior que se oculta en pantalla. Se aplica a todos los materiales.</p></div></div></div>
-          <div id="stage" class="stage"><div id="crop-window" class="crop-window"></div><div id="loading" class="loading">Preparando la ronda…</div></div>
-          <div class="viewer-footer"><span id="media-hint">Observa los detalles. Confía en tu ojo.</span><button id="replay" class="small-button" hidden>↻ Repetir clip</button></div>
-        </section>
-
-        <aside class="decision-panel">
-          <div class="decision-top"><span class="section-counter">01 — OBSERVA Y DECIDE</span><h2>¿Qué estás<br>viendo?</h2><p id="decision-help">Mira con atención y elige el origen de este material.</p></div>
-          <div class="choices" role="group" aria-label="Escoge el origen">
-            <button id="choose-real" class="choice real-choice"><span class="choice-icon">◎</span><span class="choice-copy"><strong>Real</strong><small>Capturado en el mundo real</small></span><kbd>1</kbd></button>
-            <button id="choose-ia" class="choice ai-choice"><span class="choice-icon">✳</span><span class="choice-copy"><strong>IA</strong><small>Generado artificialmente</small></span><kbd>2</kbd></button>
-          </div>
-          <div id="answer" class="answer" aria-live="polite" hidden>
-            <div id="verdict" class="verdict"></div><h3 id="answer-title"></h3><p id="explanation"></p>
-            <div class="source-box"><span>FUENTE ORIGINAL</span><a id="source" target="_blank" rel="noopener noreferrer"></a><a id="download" class="download-link" target="_blank" rel="noopener noreferrer">Ver archivo exacto ↗</a><small id="credit"></small></div>
-          </div>
-          <button id="next" class="next-button" disabled>Siguiente material <span>→</span></button>
-          <div class="score-strip"><div><span class="score-label">TU PUNTAJE</span><strong><span id="score">0</span><span class="score-denominator"> / <span id="answered">0</span></span></strong></div><span class="score-icon">↗</span></div>
-        </aside>
+      <div class="guardian">
+        <img class="turtle" src="/static/assets/tortuga-restaurada.png" alt="La tortuga guardiana de Nu Zeta">
+        <img class="stone" src="/static/assets/base-piedra.png" alt="">
+        <p>El guardián de la verdad<small>No todo es lo que parece</small></p>
       </div>
-      <footer class="bottom-bar"><span><span class="tiny-dot"></span> HUMAN VS AI <span class="footer-separator">/</span> ACTIVIDAD 02</span><span id="progress-label">100 oportunidades para poner a prueba tu intuición.</span></footer>
-      <div class="progress-track"><div id="progress"></div></div>
-    </main>
-
-    <section id="finish" class="finish" hidden><p class="eyebrow">RETO COMPLETADO</p><h1>Buen ojo.<br><span>¿O buena suerte?</span></h1><div class="final-score"><strong id="final-score"></strong><span id="final-total"></span></div><p id="final-message"></p><button id="play-again" class="next-button">Volver a jugar <span>↗</span></button></section>
-    <div id="error" class="error-toast" role="alert" hidden></div>
-  </div>
-  <dialog id="restart-dialog"><h2>¿Otra partida?</h2><p>El marcador volverá a cero y los materiales se mezclarán de nuevo.</p><div class="dialog-actions"><button id="cancel-restart" class="small-button">Seguir jugando</button><button id="confirm-restart" class="next-button">Nueva partida ↗</button></div></dialog>
+    </section>
+    <section id="game" hidden>
+      <div class="game-heading">
+        <div><p class="eyebrow" id="round-label">Ronda 1 · Turno 1 de 3</p><h2>¿Humano o IA?</h2></div>
+        <div class="clock" role="timer" aria-label="Tiempo restante"><strong id="time">15</strong><small>segundos</small></div>
+      </div>
+      <div class="turn-progress" aria-label="Avance de la ronda"><span></span><span></span><span></span></div>
+      <article class="frame projection">
+        <div id="stage" class="stage waiting">
+          <div id="media-slot" hidden></div>
+          <div id="curtain" class="curtain">
+            <p id="curtain-caption" class="eyebrow">El guardián espera tu señal</p>
+            <h3 id="curtain-title">¿Listos para observar?</h3>
+            <p id="curtain-copy">Pulsa Start cuando todos estén preparados.</p>
+          </div>
+          <div id="answer" class="answer" hidden aria-live="polite">
+            <p class="answer-caption">La respuesta es</p>
+            <h3 id="truth"></h3>
+            <p id="explanation"></p>
+            <a id="source" target="_blank" rel="noopener noreferrer"></a>
+            <small id="credit"></small>
+          </div>
+        </div>
+      </article>
+      <div class="presenter-controls">
+        <p id="status" role="status">Preparando material…</p>
+        <button id="action" class="primary" disabled>Start</button>
+        <button id="retry" class="quiet" hidden>Reintentar carga</button>
+        <button id="replace" class="quiet" hidden>Usar otro material</button>
+      </div>
+    </section>
+    <section id="round-end" class="frame intermission" hidden>
+      <p class="eyebrow" id="completed-round"></p>
+      <h2>Tres turnos.<br>¿Te sorprendió alguno?</h2>
+      <p class="subtitle">Puede acercarse quien quiera jugar.</p>
+      <button id="next-round" class="primary">Siguiente ronda</button>
+      <p class="muted">Los materiales de la próxima ronda serán diferentes.</p>
+    </section>
+    <section id="exhausted" class="frame intermission" hidden>
+      <p class="eyebrow">Banco recorrido</p>
+      <h2>¡Cuántas apariencias<br>engañosas!</h2>
+      <p id="exhausted-note" class="subtitle"></p>
+      <p class="muted">Para volver a usar los materiales, reinicia el banco. Las repeticiones solo vuelven después de esta confirmación.</p>
+      <button id="reset" class="primary">Reiniciar banco de materiales</button>
+    </section>
+    <section class="allies" aria-label="Comunidad del evento">
+      <img src="/static/assets/nu-zeta-chapter-logo-4k.png" alt="IEEE HKN Nu Zeta">
+      <img src="/static/assets/mlh-logo-4k.png" alt="Major League Hacking">
+    </section>
+  </main>
+  <footer><span>Hacktoberfest · IEEE HKN ESPOL</span><span>Humano vs IA · El desafío de la percepción</span></footer>
+  <dialog id="reset-dialog"><h2>¿Volver a usar el banco?</h2><p>Los materiales ya vistos podrán aparecer otra vez. Se mezclarán para una nueva sesión.</p><div class="dialog-actions"><button id="reset-cancel" class="quiet">Cancelar</button><button id="reset-confirm" class="primary">Sí, reiniciar</button></div></dialog>
+  <div id="notice" role="alert" hidden></div>
 </body>
 </html>

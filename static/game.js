@@ -1,177 +1,322 @@
-const $ = (id) => document.getElementById(id);
-let game, busy = false, activeId = null, media = null;
-let crop = Math.max(0, Math.min(16, Number(localStorage.getItem('humanvsai-crop') ?? 8) || 0));
-$('crop').value = crop;
-$('crop-value').textContent = crop + '%';
+import { createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
 
-function showError(message) {
-  $('error').textContent = message;
-  $('error').hidden = false;
-  setTimeout(() => { $('error').hidden = true; }, 6000);
+const $ = id => document.getElementById(id);
+const KEY = 'human-vs-ia-presentation-v2';
+let bank = new Map();
+let session = null;
+let activeMedia = null;
+let activeAsset = null;
+let mediaReady = false;
+let loadToken = 0;
+let tick = null;
+let warningTimeout;
+
+function notify(message) {
+  $('notice').textContent = message;
+  $('notice').hidden = false;
+  clearTimeout(warningTimeout);
+  warningTimeout = setTimeout(() => { $('notice').hidden = true; }, 6500);
 }
 
-async function api(path, body) {
-  const response = await fetch('/api/' + path, body === undefined ? {} : {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'No se pudo completar la acción.');
-  return data;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(session)); }
+  catch { notify('No se pudo guardar el historial. Mantén esta pestaña abierta para evitar repeticiones.'); }
 }
 
-function fitMedia() {
-  if (!media) return;
-  if (media.tagName === 'AUDIO') {
-    $('crop-window').style.width = Math.min(480, $('stage').clientWidth - 40) + 'px';
-    $('crop-window').style.height = 'auto';
-    return;
+function show(view) {
+  document.body.classList.toggle('presenting', view === 'game');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  for (const id of ['welcome', 'game', 'round-end', 'exhausted']) $(id).hidden = id !== view;
+}
+
+function stopClock() {
+  clearInterval(tick);
+  tick = null;
+}
+
+function stopMedia() {
+  activeMedia?.pause?.();
+}
+
+function releaseMedia() {
+  loadToken++;
+  stopMedia();
+  if (activeMedia && ['AUDIO', 'VIDEO'].includes(activeMedia.tagName)) {
+    activeMedia.removeAttribute('src');
+    activeMedia.load();
   }
-  const w = media.videoWidth || media.naturalWidth;
-  const h = media.videoHeight || media.naturalHeight;
-  if (!w || !h) return;
-  const stage = $('stage');
-  const ratio = w / (h * (1 - crop / 100));
-  const width = Math.min(stage.clientWidth - 24, (stage.clientHeight - 24) * ratio);
-  $('crop-window').style.width = width + 'px';
-  $('crop-window').style.height = width / ratio + 'px';
+  activeMedia = null;
+  activeAsset = null;
+  mediaReady = false;
+  $('media-slot').replaceChildren();
 }
 
-function loadMedia(material) {
-  if (activeId === material.id) return;
-  if (['VIDEO', 'AUDIO'].includes(media?.tagName)) { media.pause(); media.removeAttribute('src'); media.load(); }
-  activeId = material.id;
-  $('crop-window').replaceChildren();
-  $('loading').textContent = 'Preparando la ronda…';
-  $('loading').hidden = false;
-  $('replay').hidden = material.type === 'image';
-  $('replay').textContent = material.type === 'audio' ? '↻ Repetir audio' : '↻ Repetir clip';
-  $('framing').hidden = material.type === 'audio';
-  $('framing-popover').hidden = true;
-  $('framing').setAttribute('aria-expanded', 'false');
-  $('crop-window').classList.toggle('audio-window', material.type === 'audio');
-  $('media-kind').textContent = material.type === 'video' ? '▶ CLIP DE VIDEO' : material.type === 'audio' ? '♫ AUDIO' : '▧ IMAGEN';
-  $('media-hint').textContent = material.type === 'video' ? 'Clic en el video para pausar o continuar.' : material.type === 'audio' ? 'Pulsa reproducir y escucha antes de elegir.' : 'Observa los detalles. Confía en tu ojo.';
-  media = document.createElement(material.type === 'video' ? 'video' : material.type === 'audio' ? 'audio' : 'img');
-  const currentMedia = media;
-  if (material.type === 'video') {
-    media.muted = true; media.autoplay = true; media.playsInline = true; media.loop = true;
-    media.preload = 'auto'; media.setAttribute('aria-label', 'Video de la ronda, haz clic para pausar');
-    media.addEventListener('click', () => currentMedia.paused ? currentMedia.play().catch(() => {}) : currentMedia.pause());
-    media.addEventListener('loadeddata', () => { if (media === currentMedia) { fitMedia(); $('loading').hidden = true; } });
-  } else if (material.type === 'audio') {
-    media.controls = true; media.preload = 'metadata';
-    media.setAttribute('aria-label', 'Audio de la ronda');
-    media.addEventListener('loadedmetadata', () => { if (media === currentMedia) { fitMedia(); $('loading').hidden = true; } });
+function setCurtain(caption, title, copy) {
+  $('curtain-caption').textContent = caption;
+  $('curtain-title').textContent = title;
+  $('curtain-copy').textContent = copy;
+}
+
+function setAction(label, disabled = false) {
+  $('action').textContent = label;
+  $('action').disabled = disabled;
+  $('action').hidden = false;
+}
+
+function renderTimer() {
+  const seconds = session.phase === 'running' ? Math.max(0, Math.ceil((session.deadline - Date.now()) / 1000)) : session.phase === 'ready' ? 15 : 0;
+  $('time').textContent = seconds;
+  document.querySelector('.clock').classList.toggle('urgent', session.phase === 'running' && seconds <= 5);
+}
+
+function updateClock() {
+  if (expireTurn(session)) {
+    // Hide the original before exposing any answer control.
+    $('media-slot').hidden = true;
+    $('stage').className = 'stage blank';
+    stopMedia();
+    stopClock();
+    save();
+    render();
+    $('action').focus({ preventScroll: true });
+  } else renderTimer();
+}
+
+function armClock() {
+  stopClock();
+  if (session.phase !== 'running') return;
+  updateClock();
+  if (session.phase === 'running') tick = setInterval(updateClock, 100);
+}
+
+function loadMedia() {
+  const asset = currentId(session);
+  if (activeAsset === asset) return;
+  releaseMedia();
+  activeAsset = asset;
+  const token = loadToken;
+  const material = bank.get(asset);
+  const el = document.createElement({ image: 'img', audio: 'audio', video: 'video' }[material.tipo]);
+  activeMedia = el;
+  const onReady = () => {
+    if (token !== loadToken || mediaReady) return;
+    mediaReady = true;
+    $('retry').hidden = true;
+    $('replace').hidden = true;
+    if (session.phase === 'ready') {
+      $('status').textContent = 'Todo listo. Esperando Start.';
+      setAction('Start');
+    } else if (session.phase === 'running') {
+      updateClock();
+      if (session.phase === 'running') el.play?.().catch(() => notify('El navegador bloqueó el sonido. Usa los controles del reproductor.'));
+    }
+  };
+  el.addEventListener('error', () => {
+    if (token !== loadToken) return;
+    mediaReady = false;
+    if (session.phase === 'running') {
+      session.phase = 'blank';
+      session.deadline = null;
+      save();
+      render();
+      notify('La reproducción falló. Puedes revelar la respuesta y continuar.');
+    } else if (session.phase === 'ready') {
+      $('status').textContent = 'No se pudo cargar este archivo. Reintenta o usa otro material nuevo.';
+      setAction('Start', true);
+      $('retry').hidden = false;
+      $('replace').hidden = false;
+    }
+  });
+  if (material.tipo === 'image') {
+    el.alt = 'Material del turno: ¿humano o inteligencia artificial?';
+    el.addEventListener('load', onReady);
+    $('media-slot').append(el);
   } else {
-    media.alt = 'Imagen de la ronda: decide si es real o generada con IA';
-    media.addEventListener('load', () => { if (media === currentMedia) { fitMedia(); $('loading').hidden = true; } });
+    el.preload = 'auto';
+    el.controls = true;
+    el.setAttribute('aria-label', material.tipo === 'audio' ? 'Audio del turno' : 'Video del turno');
+    el.addEventListener('canplay', onReady);
+    // Prevent a replay after the curtain closes, including through media keys.
+    el.addEventListener('play', () => {
+      if (session.phase !== 'running') el.pause();
+      else updateClock();
+    });
+    if (material.tipo === 'video') {
+      el.playsInline = true;
+      $('media-slot').append(el);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.className = 'audio-scene';
+      const symbol = document.createElement('div');
+      symbol.className = 'audio-symbol';
+      symbol.textContent = '♫';
+      symbol.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('p');
+      label.textContent = '¿Una grabación real o un sonido generado?';
+      wrap.append(symbol, label, el);
+      $('media-slot').append(wrap);
+    }
   }
-  media.addEventListener('error', () => {
-    if (media === currentMedia) { $('loading').hidden = false; $('loading').textContent = 'No se pudo abrir este material. Recarga la página para reintentarlo.'; }
-  });
-  media.src = material.url;
-  if (material.type === 'audio') {
-    const card = document.createElement('div'); card.className = 'audio-card';
-    const icon = document.createElement('div'); icon.className = 'audio-symbol'; icon.textContent = '♫'; icon.setAttribute('aria-hidden', 'true');
-    const title = document.createElement('h3'); title.textContent = 'Afina el oído.';
-    const hint = document.createElement('p'); hint.textContent = '¿Grabación real o sonido generado con IA?';
-    card.append(icon, title, hint, media); $('crop-window').append(card); fitMedia();
-  } else { $('crop-window').append(media); }
+  el.src = material.asset;
+  setTimeout(() => {
+    if (token !== loadToken || mediaReady || session.phase !== 'ready') return;
+    $('status').textContent = 'La carga está tardando. Puedes reintentar o usar otro material nuevo.';
+    $('retry').hidden = false;
+    $('replace').hidden = false;
+  }, 18000);
 }
 
-function render(data) {
-  game = data;
-  $('game').hidden = data.finished;
-  $('finish').hidden = !data.finished;
-  if (data.finished) {
-    media?.pause?.();
-    $('final-score').textContent = data.score;
-    $('final-total').textContent = '/ ' + data.total;
-    const ratio = data.score / data.total;
-    $('final-message').textContent = ratio >= .8 ? 'Tienes buen ojo para los detalles. ¿Te atreves a repetir?' : ratio >= .5 ? 'La realidad y la IA se parecen más de lo que creemos. Prueba otra vez.' : 'No siempre basta con mirar. Verificar la fuente marca la diferencia.';
+function render() {
+  stopClock();
+  if (session.phase === 'roundEnd') {
+    releaseMedia();
+    show('round-end');
+    $('completed-round').textContent = `Ronda ${session.round} completada`;
     return;
   }
-  $('round-number').textContent = String(data.position + 1).padStart(2, '0');
-  $('total').textContent = data.total;
-  $('score').textContent = data.score;
-  $('answered').textContent = data.answered;
-  $('progress').style.width = (data.answered / data.total * 100) + '%';
-  $('progress-label').textContent = data.answered ? `${data.answered} de ${data.total} materiales resueltos.` : `${data.total} oportunidades para poner a prueba tu intuición.`;
-  loadMedia(data.material);
-  const answered = Boolean(data.answer);
-  document.querySelector('.decision-top h2').textContent = data.material.type === 'audio' ? '¿Qué estás escuchando?' : '¿Qué estás viendo?';
-  document.querySelector('.decision-top').hidden = answered;
-  document.querySelector('.choices').hidden = answered;
-  for (const choice of ['real', 'ia']) {
-    const button = $('choose-' + choice);
-    button.disabled = answered;
-    button.classList.toggle('correct', answered && data.answer.category === choice);
-    button.classList.toggle('wrong', answered && data.answer.choice === choice && !data.answer.correct);
-    button.classList.toggle('selected', answered && data.answer.choice === choice);
+  if (session.phase === 'exhausted') {
+    releaseMedia();
+    show('exhausted');
+    const left = session.order.length - session.cursor;
+    $('exhausted-note').textContent = left ? `Quedan ${left} materiales nuevos: no alcanzan para otra ronda de tres.` : 'Ya se mostraron todos los materiales de esta sesión.';
+    return;
   }
-  $('answer').hidden = !answered;
-  $('next').disabled = !answered;
-  $('next').firstChild.textContent = data.position === data.total - 1 ? 'Ver resultado final ' : 'Siguiente material ';
-  $('decision-help').textContent = answered ? 'Respuesta revelada. Comprueba su origen abajo.' : data.material.type === 'audio' ? 'Escucha con atención y elige el origen de este sonido.' : 'Mira con atención y elige el origen de este material.';
-  if (answered) {
-    const a = data.answer;
-    $('verdict').classList.toggle('miss', !a.correct);
-    $('verdict').textContent = a.correct ? '✓ ¡Acertaste!' : '↗ Esta vez no.';
-    $('answer-title').textContent = a.category === 'ia' ? 'Es inteligencia artificial.' : 'Es real.';
-    $('explanation').textContent = a.explanation;
-    $('source').textContent = a.source;
-    $('source').href = a.source;
-    $('download').href = a.download;
-    $('credit').textContent = 'Crédito: ' + a.credit;
+  show('game');
+  $('round-label').textContent = `Ronda ${session.round} · Turno ${session.turn + 1} de 3`;
+  document.querySelectorAll('.turn-progress span').forEach((el, i) => {
+    el.className = i < session.turn ? 'complete' : i === session.turn ? 'current' : '';
+  });
+  $('retry').hidden = true;
+  $('replace').hidden = true;
+  $('answer').hidden = true;
+  $('curtain').hidden = false;
+  $('media-slot').hidden = true;
+  $('stage').className = 'stage ' + ({ ready: 'waiting', running: 'viewing', blank: 'blank', answer: 'revealed' }[session.phase]);
+  renderTimer();
+  if (session.phase === 'ready') {
+    setCurtain('El guardián espera tu señal', '¿Listos para observar?', 'Pulsa Start cuando todos estén preparados.');
+    $('status').textContent = mediaReady && activeAsset === currentId(session) ? 'Todo listo. Esperando Start.' : 'Preparando material…';
+    setAction('Start', !mediaReady || activeAsset !== currentId(session));
+    loadMedia();
+  } else if (session.phase === 'running') {
+    $('curtain').hidden = true;
+    $('media-slot').hidden = false;
+    $('action').hidden = true;
+    $('status').textContent = 'Observa y decide: ¿humano o IA?';
+    loadMedia();
+    armClock();
+  } else if (session.phase === 'blank') {
+    stopMedia();
+    setCurtain('Tiempo terminado', '¿Humano o IA?', 'Comenten sus respuestas antes de descubrirlo.');
+    $('status').textContent = 'El material está oculto. La respuesta sigue en secreto.';
+    setAction('Mostrar respuesta');
+  } else {
+    stopMedia();
+    $('curtain').hidden = true;
+    $('answer').hidden = false;
+    const material = bank.get(currentId(session));
+    $('truth').textContent = material.categoria === 'real' ? 'Humano' : 'Inteligencia artificial';
+    $('explanation').textContent = material.explicacion;
+    $('source').href = material.fuente;
+    $('source').textContent = `${material.titulo} · Ver fuente original ↗`;
+    $('credit').textContent = [material.credito, material.licencia_resumen].filter(Boolean).join(' · ');
+    $('status').textContent = session.turn === 2 ? 'Tercer turno. Puedes cerrar esta ronda cuando quieras.' : 'Cuando estén listos, pasa al siguiente turno.';
+    setAction('Siguiente');
   }
 }
 
-async function action(task) {
-  if (busy) return;
-  busy = true;
-  try { render(await task()); }
-  catch (error) { showError(error.message || 'No se pudo conectar con el juego.'); }
-  finally { busy = false; }
+function act() {
+  if (!session) return;
+  if (session.phase === 'ready') {
+    if (!mediaReady || !beginTurn(session)) return;
+    save();
+    render();
+    if (activeMedia?.play) activeMedia.play().catch(() => notify('Pulsa reproducir en el material para activar el sonido.'));
+  } else if (session.phase === 'blank') {
+    revealAnswer(session);
+    save();
+    render();
+  } else if (session.phase === 'answer') {
+    advanceTurn(session);
+    save();
+    render();
+  }
 }
-function vote(choice) {
-  if (!game || game.finished || game.answer) return;
-  action(() => api('answer', { id: game.material.id, choice }));
+
+$('action').onclick = act;
+function openSession() {
+  if (!session) { session = createSession([...bank.keys()]); save(); }
+  expireTurn(session);
+  save();
+  render();
 }
-function next() {
-  if (!game?.answer || game.finished) return;
-  action(() => api('next', { id: game.material.id }));
+$('begin').onclick = openSession;
+$('next-round').onclick = () => { if (nextRound(session)) { save(); render(); } };
+$('retry').onclick = () => { if (session.phase === 'ready') { releaseMedia(); render(); } };
+$('replace').onclick = () => {
+  if (session.phase !== 'ready') return;
+  const nextIndex = session.cursor + 1;
+  if (nextIndex >= session.order.length) { notify('No quedan otros materiales nuevos. Reintenta la carga.'); return; }
+  const [failed] = session.order.splice(session.cursor, 1);
+  session.order.push(failed);
+  save();
+  releaseMedia();
+  render();
+};
+$('reset').onclick = () => $('reset-dialog').showModal();
+$('reset-cancel').onclick = () => $('reset-dialog').close();
+$('reset-confirm').onclick = () => {
+  $('reset-dialog').close();
+  session = createSession([...bank.keys()]);
+  save();
+  render();
+};
+$('fullscreen').onclick = async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch { notify('Tu navegador no permite pantalla completa en este dispositivo.'); }
+};
+document.addEventListener('keydown', event => {
+  if (event.repeat || document.querySelector('dialog[open]') || ['BUTTON', 'A'].includes(document.activeElement.tagName)) return;
+  if (event.key === 'Enter' || event.code === 'Space') {
+    event.preventDefault();
+    if (!$('welcome').hidden && !$('begin').disabled) $('begin').click();
+    else if (!$('game').hidden && !$('action').disabled && !$('action').hidden) act();
+    else if (!$('round-end').hidden) $('next-round').click();
+  }
+});
+document.addEventListener('visibilitychange', () => {
+  if (session?.phase === 'running') updateClock();
+});
+window.addEventListener('pageshow', () => {
+  if (session?.phase === 'running') updateClock();
+});
+
+async function init() {
+  try {
+    const response = await fetch('materials.json');
+    if (!response.ok) throw Error('inventory');
+    const materials = await response.json();
+    if (!Array.isArray(materials) || materials.length < 3) throw Error('inventory');
+    bank = new Map(materials.map(material => [material.asset, material]));
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY));
+      if (validSession(saved, [...bank.keys()])) {
+        session = saved;
+        // A refresh cannot buy another 15 seconds or expose an expired material.
+        expireTurn(session);
+        save();
+      }
+    } catch { /* A fresh session will be created on Start. */ }
+    $('begin').onclick = openSession;
+    $('begin').textContent = session ? 'Continuar sesión' : 'Preparar primera ronda';
+    $('begin').disabled = false;
+  } catch {
+    $('begin').textContent = 'Reintentar carga';
+    $('begin').disabled = false;
+    $('begin').onclick = () => { $('begin').disabled = true; init(); };
+    notify('No se pudo cargar el banco. Reintenta la carga.');
+  }
 }
-$('choose-real').addEventListener('click', () => vote('real'));
-$('choose-ia').addEventListener('click', () => vote('ia'));
-$('next').addEventListener('click', next);
-$('replay').addEventListener('click', () => { if (['VIDEO', 'AUDIO'].includes(media?.tagName)) { media.currentTime = 0; media.play().catch(() => {}); } });
-$('framing').addEventListener('click', () => {
-  $('framing-popover').hidden = !$('framing-popover').hidden;
-  $('framing').setAttribute('aria-expanded', String(!$('framing-popover').hidden));
-});
-$('crop').addEventListener('input', (event) => {
-  crop = Number(event.target.value); $('crop-value').textContent = crop + '%';
-  localStorage.setItem('humanvsai-crop', crop); fitMedia();
-});
-document.addEventListener('click', (event) => {
-  if (!event.target.closest('.framing-control')) { $('framing-popover').hidden = true; $('framing').setAttribute('aria-expanded', 'false'); }
-});
-async function toggleFullscreen() {
-  try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
-  catch { showError('Usa F11 para abrir la pantalla completa en tu navegador.'); }
-}
-$('fullscreen').addEventListener('click', toggleFullscreen);
-$('restart').addEventListener('click', () => $('restart-dialog').showModal());
-$('cancel-restart').addEventListener('click', () => $('restart-dialog').close());
-$('confirm-restart').addEventListener('click', () => { $('restart-dialog').close(); action(() => api('start', {})); });
-$('play-again').addEventListener('click', () => action(() => api('start', {})));
-document.addEventListener('keydown', (event) => {
-  if (event.repeat || $('restart-dialog').open || ['INPUT', 'BUTTON', 'A'].includes(document.activeElement.tagName)) return;
-  if (event.key === '1') vote('real');
-  else if (event.key === '2') vote('ia');
-  else if (['Enter', 'ArrowRight'].includes(event.key)) { event.preventDefault(); next(); }
-  else if (event.key.toLowerCase() === 'f') toggleFullscreen();
-  else if (event.code === 'Space' && ['VIDEO', 'AUDIO'].includes(media?.tagName)) { event.preventDefault(); media.paused ? media.play().catch(() => {}) : media.pause(); }
-});
-new ResizeObserver(fitMedia).observe($('stage'));
-action(() => api('state'));
+init();
