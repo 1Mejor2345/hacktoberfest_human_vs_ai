@@ -15,7 +15,9 @@ Actividad abierta para mostrar en una pantalla grande. Conserva la estética med
 
 ## Encuadre
 
-Las imágenes y los videos llenan el marco con un zoom centrado de 1,25×, que deja fuera al menos el 10 % de cada borde. El recorte se aplica igual a materiales humanos y de IA, y puede cortar parte de la composición para ocultar marcas periféricas. Los archivos originales, las fuentes y los créditos se conservan.
+Las imágenes y los videos conservan su proporción y se ajustan al espacio disponible, sin la ampliación forzada de la versión anterior. Por defecto, el zoom es del 100 % y solo se recorta el 8 % inferior. El botón de encuadre de la cabecera permite ajustar el zoom (100–160 %) y el recorte inferior (0–20 %), guardar esos valores en este navegador o restablecer los valores predeterminados. El encuadre se aplica igual a materiales humanos y de IA. Los archivos originales, las fuentes y los créditos se conservan.
+
+La portada se adapta al alto de las pantallas de computadora e incluye los tres logotipos del evento. El botón de música permite ajustar el volumen o silenciar el ambiente; la música se pausa durante los diez segundos de cada material. Créditos en [MUSIC_CREDITS.md](MUSIC_CREDITS.md).
 
 ## Sin repeticiones
 

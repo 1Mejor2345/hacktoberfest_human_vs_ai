@@ -6,12 +6,36 @@
   <meta name="theme-color" content="#1a1612">
   <title>Humano vs IA · Hacktoberfest</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/presentation.css">
+  <script defer src="/static/music.js"></script>
   <script type="module" src="/static/game.js"></script>
 </head>
 <body>
   <header class="topbar">
     <img class="event-logo" src="/static/assets/hacktoberfest-x-ieee-hkn-nu-zeta.svg" alt="Hacktoberfest × IEEE HKN Nu Zeta">
-    <button id="fullscreen" class="quiet" aria-label="Pantalla completa">⛶</button>
+    <nav class="header-actions" aria-label="Controles de presentación">
+      <details class="framing-menu" id="framing-menu">
+        <summary aria-label="Ajustar encuadre" title="Ajustar encuadre">⌗</summary>
+        <div class="settings-popover">
+          <label for="zoom">Zoom <output id="zoom-value" for="zoom">100%</output></label>
+          <input id="zoom" type="range" min="100" max="160" step="1" value="100">
+          <label for="crop-bottom">Recorte inferior <output id="crop-value" for="crop-bottom">8%</output></label>
+          <input id="crop-bottom" type="range" min="0" max="20" step="1" value="8">
+          <button type="button" class="quiet" id="framing-reset">Restablecer encuadre</button>
+          <p>Se aplica a imágenes y videos. Se guarda en este navegador.</p>
+        </div>
+      </details>
+      <details class="sound-menu" id="sound-menu">
+        <summary aria-label="Ajustar volumen de la música" title="Volumen de la música"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5V4Z" fill="currentColor"/><g class="speaker-waves" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M15 8c2 2 2 6 0 8M18 5c4 4 4 10 0 14"/></g><path class="speaker-muted" d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></summary>
+        <div class="settings-popover volume-popover">
+          <label for="volume">Música del evento <output id="volume-value" for="volume">25%</output></label>
+          <input id="volume" type="range" min="0" max="1" step="0.05" value="0.25" aria-label="Volumen de música">
+          <div class="volume-bottom"><button id="music-mute" class="quiet" type="button" aria-pressed="false">Silenciar</button><span id="music-status" role="status" aria-live="polite">Lista para sonar</span></div>
+        </div>
+      </details>
+      <audio id="music-audio" preload="metadata" hidden></audio>
+      <button id="fullscreen" class="quiet" aria-label="Pantalla completa">⛶</button>
+    </nav>
   </header>
   <main>
     <section id="welcome" class="hero frame">
@@ -25,8 +49,10 @@
         <div class="facts"><span><b>3</b> turnos</span><span><b>10 s</b> para observar</span><span><b>Sin</b> repeticiones</span></div>
       </div>
       <div class="guardian">
-        <img class="turtle" src="/static/assets/tortuga-restaurada.png" alt="La tortuga guardiana de Nu Zeta">
-        <img class="stone" src="/static/assets/base-piedra.png" alt="">
+        <div class="guardian-figure">
+          <img class="turtle" src="/static/assets/tortuga-restaurada.png" alt="La tortuga guardiana de Nu Zeta">
+          <img class="stone" src="/static/assets/base-piedra.png" alt="">
+        </div>
         <p>El guardián de la verdad<small>No todo es lo que parece</small></p>
       </div>
     </section>
@@ -77,6 +103,7 @@
     <section class="allies" aria-label="Comunidad del evento">
       <img src="/static/assets/nu-zeta-chapter-logo-4k.png" alt="IEEE HKN Nu Zeta">
       <img src="/static/assets/mlh-logo-4k.png" alt="Major League Hacking">
+      <img class="google-developers-logo" src="/static/assets/google-for-developers-transparent.png" alt="Google for Developers">
     </section>
   </main>
   <footer><span>Hacktoberfest · IEEE HKN ESPOL</span><span>Humano vs IA · El desafío de la percepción</span></footer>

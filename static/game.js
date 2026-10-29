@@ -1,4 +1,5 @@
 import { TURN_MS, migrateTurnDuration, createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
+import { DEFAULT_FRAMING, normalizeFraming, fitFrame } from './framing.js';
 
 const $ = id => document.getElementById(id);
 const KEY = 'human-vs-ia-presentation-v2';
@@ -10,6 +11,54 @@ let mediaReady = false;
 let loadToken = 0;
 let tick = null;
 let warningTimeout;
+const FRAMING_KEY = 'human-vs-ia-framing-v1';
+let framing = { ...DEFAULT_FRAMING };
+try { framing = normalizeFraming(JSON.parse(localStorage.getItem(FRAMING_KEY))); } catch { /* Use the default frame. */ }
+
+function fitMedia() {
+  const frame = $('media-frame');
+  if (!frame || !activeMedia) return;
+  const stage = $('stage');
+  const box = fitFrame(stage.clientWidth, stage.clientHeight,
+    activeMedia.videoWidth || activeMedia.naturalWidth,
+    activeMedia.videoHeight || activeMedia.naturalHeight, framing);
+  if (!box) return;
+  frame.style.width = box.width + 'px';
+  frame.style.height = box.height + 'px';
+  Object.assign(activeMedia.style, { width: box.mediaWidth + 'px', height: box.mediaHeight + 'px', left: box.left + 'px', top: box.top + 'px' });
+}
+
+function updateFraming() {
+  $('zoom').value = framing.zoom;
+  $('crop-bottom').value = framing.crop;
+  $('zoom-value').textContent = framing.zoom + '%';
+  $('crop-value').textContent = framing.crop + '%';
+  fitMedia();
+}
+
+for (const id of ['zoom', 'crop-bottom']) $(id).addEventListener('input', () => {
+  framing = normalizeFraming({ zoom: Number($('zoom').value), crop: Number($('crop-bottom').value) });
+  try { localStorage.setItem(FRAMING_KEY, JSON.stringify(framing)); } catch { /* Keep the current settings in memory. */ }
+  updateFraming();
+});
+$('framing-reset').onclick = () => {
+  framing = { ...DEFAULT_FRAMING };
+  try { localStorage.removeItem(FRAMING_KEY); } catch { /* The current view still resets. */ }
+  updateFraming();
+};
+window.addEventListener('resize', fitMedia);
+new ResizeObserver(fitMedia).observe($('stage'));
+document.addEventListener('pointerdown', event => {
+  const menu = $('framing-menu');
+  if (menu.open && !menu.contains(event.target)) menu.open = false;
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && $('framing-menu').open) {
+    $('framing-menu').open = false;
+    $('framing-menu').querySelector('summary').focus();
+  }
+});
+updateFraming();
 
 function notify(message) {
   $('notice').textContent = message;
@@ -25,6 +74,7 @@ function save() {
 
 function show(view) {
   document.body.classList.toggle('presenting', view === 'game');
+  window.HumanMusic?.setScene(view === 'welcome' ? 'welcome' : view === 'exhausted' ? 'finish' : 'early', { paused: view === 'game' && session?.phase === 'running' });
   window.scrollTo({ top: 0, behavior: 'instant' });
   for (const id of ['welcome', 'game', 'round-end', 'exhausted']) $(id).hidden = id !== view;
 }
@@ -101,6 +151,7 @@ function loadMedia() {
   const onReady = () => {
     if (token !== loadToken || mediaReady) return;
     mediaReady = true;
+    fitMedia();
     $('retry').hidden = true;
     $('replace').hidden = true;
     if (session.phase === 'ready') {
@@ -130,7 +181,9 @@ function loadMedia() {
   if (material.tipo === 'image') {
     el.alt = 'Material del turno: ¿humano o inteligencia artificial?';
     el.addEventListener('load', onReady);
-    $('media-slot').append(el);
+    const frame = document.createElement('div');
+    frame.id = 'media-frame'; frame.className = 'media-frame';
+    frame.append(el); $('media-slot').append(frame);
   } else {
     el.preload = 'auto';
     el.controls = true;
@@ -143,7 +196,10 @@ function loadMedia() {
     });
     if (material.tipo === 'video') {
       el.playsInline = true;
-      $('media-slot').append(el);
+      el.addEventListener('loadedmetadata', fitMedia);
+      const frame = document.createElement('div');
+      frame.id = 'media-frame'; frame.className = 'media-frame';
+      frame.append(el); $('media-slot').append(frame);
     } else {
       const wrap = document.createElement('div');
       wrap.className = 'audio-scene';
@@ -204,6 +260,7 @@ function render() {
     $('action').hidden = true;
     $('status').textContent = 'Observa y decide: ¿humano o IA?';
     loadMedia();
+    fitMedia();
     armClock();
   } else if (session.phase === 'blank') {
     stopMedia();
@@ -278,7 +335,7 @@ $('fullscreen').onclick = async () => {
   } catch { notify('Tu navegador no permite pantalla completa en este dispositivo.'); }
 };
 document.addEventListener('keydown', event => {
-  if (event.repeat || document.querySelector('dialog[open]') || ['BUTTON', 'A'].includes(document.activeElement.tagName)) return;
+  if (event.repeat || document.querySelector('dialog[open]') || ['BUTTON', 'A', 'INPUT', 'SUMMARY'].includes(document.activeElement.tagName)) return;
   if (event.key === 'Enter' || event.code === 'Space') {
     event.preventDefault();
     if (!$('welcome').hidden && !$('begin').disabled) $('begin').click();
