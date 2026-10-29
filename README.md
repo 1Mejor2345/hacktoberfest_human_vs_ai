@@ -50,3 +50,7 @@ node --test tests/flow.test.mjs
 ```
 
 Los archivos del Drive mantienen sus bytes originales. `inventario.json` conserva sus fuentes y créditos. El navegador recibe los metadatos en `/materials.json` y carga los archivos mediante rutas neutrales en `/media/<id>`. Los logotipos y la tortuga proceden de la página de referencia proporcionada por el usuario.
+
+## Amplificación del material
+
+El menú de sonido ofrece una ganancia extra de 1× a 4× para los audios y videos del turno, independiente del volumen normal del reproductor y de la música de fondo. El valor inicial es 1×, se guarda por navegador y se puede restablecer con **Sin amplificación**. La ganancia se procesa en el navegador con Web Audio; no se modifican los archivos. Si aparece distorsión al amplificar, reduce el ajuste.

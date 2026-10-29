@@ -58,7 +58,8 @@ def media(key):
 def headers(response):
     if request.path in {"/", "/materials.json"} or request.path in {
         "/static/game.js", "/static/flow.js", "/static/style.css",
-        "/static/framing.js", "/static/music.js", "/static/presentation.css"
+        "/static/framing.js", "/static/music.js", "/static/presentation.css",
+        "/static/amplifier.js"
     }:
         response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"

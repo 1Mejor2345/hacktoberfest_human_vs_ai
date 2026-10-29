@@ -1,5 +1,6 @@
 import { TURN_MS, migrateTurnDuration, createSession, currentId, beginTurn, expireTurn, revealAnswer, advanceTurn, nextRound, validSession } from './flow.js';
 import { DEFAULT_FRAMING, normalizeFraming, restoreFraming, fitFrame } from './framing.js';
+import { MaterialAmplifier, normalizeBoost } from './amplifier.js';
 
 const $ = id => document.getElementById(id);
 const KEY = 'human-vs-ia-presentation-v2';
@@ -11,6 +12,32 @@ let mediaReady = false;
 let loadToken = 0;
 let tick = null;
 let warningTimeout;
+const BOOST_KEY = 'human-vs-ia-material-boost-v1';
+let savedBoost = 1;
+try { savedBoost = normalizeBoost(localStorage.getItem(BOOST_KEY)); } catch { /* Normal sound by default. */ }
+const amplifier = new MaterialAmplifier(window.AudioContext || window.webkitAudioContext, savedBoost);
+
+function updateBoost(value) {
+  const amount = amplifier.set(value);
+  $('material-boost').value = amount;
+  $('boost-value').textContent = amount + '×';
+  try { localStorage.setItem(BOOST_KEY, String(amount)); } catch { /* Keep the setting in memory. */ }
+  if (activeMedia?.play) prepareSound(activeMedia);
+}
+
+function prepareSound(media) {
+  try { amplifier.attach(media); }
+  catch { notify('No se pudo activar la amplificación. Prueba el volumen normal del reproductor.'); }
+}
+$('material-boost').addEventListener('input', () => updateBoost($('material-boost').value));
+$('boost-reset').onclick = () => updateBoost(1);
+$('material-boost').value = savedBoost;
+$('boost-value').textContent = savedBoost + '×';
+if (!amplifier.Context) {
+  $('material-boost').disabled = true;
+  $('boost-reset').disabled = true;
+  $('boost-help').textContent = 'Este navegador solo permite el volumen normal del reproductor.';
+}
 const FRAMING_KEY = 'human-vs-ia-framing-v2';
 let framing = { ...DEFAULT_FRAMING };
 try {
@@ -96,6 +123,7 @@ function stopMedia() {
 function releaseMedia() {
   loadToken++;
   stopMedia();
+  amplifier.detach();
   if (activeMedia && ['AUDIO', 'VIDEO'].includes(activeMedia.tagName)) {
     activeMedia.removeAttribute('src');
     activeMedia.load();
@@ -164,7 +192,10 @@ function loadMedia() {
       setAction('Start');
     } else if (session.phase === 'running') {
       updateClock();
-      if (session.phase === 'running') el.play?.().catch(() => notify('El navegador bloqueó el sonido. Usa los controles del reproductor.'));
+      if (session.phase === 'running') {
+        prepareSound(el);
+        el.play?.().catch(() => notify('El navegador bloqueó el sonido. Usa los controles del reproductor.'));
+      }
     }
   };
   el.addEventListener('error', () => {
@@ -197,7 +228,7 @@ function loadMedia() {
     // Prevent a replay after the curtain closes, including through media keys.
     el.addEventListener('play', () => {
       if (session.phase !== 'running') el.pause();
-      else updateClock();
+      else { prepareSound(el); updateClock(); }
     });
     if (material.tipo === 'video') {
       el.playsInline = true;
@@ -293,7 +324,10 @@ function act() {
     if (!mediaReady || !beginTurn(session)) return;
     save();
     render();
-    if (activeMedia?.play) activeMedia.play().catch(() => notify('Pulsa reproducir en el material para activar el sonido.'));
+    if (activeMedia?.play) {
+      prepareSound(activeMedia);
+      activeMedia.play().catch(() => notify('Pulsa reproducir en el material para activar el sonido.'));
+    }
   } else if (session.phase === 'blank') {
     revealAnswer(session);
     save();
@@ -309,6 +343,10 @@ $('action').onclick = act;
 function openSession() {
   if (!session) { session = createSession([...bank.keys()]); save(); }
   expireTurn(session);
+  // Unlock during Continue's click, before a restored audio finishes loading.
+  if (session.phase === 'running') {
+    try { amplifier.unlock(); } catch { /* Native playback remains available. */ }
+  }
   save();
   render();
 }
